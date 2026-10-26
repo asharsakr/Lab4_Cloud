@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Registration System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 30px auto; padding: 20px; }
+        .grid-container { display: flex; gap: 20px; justify-content: space-between; }
+        .card { flex: 1; padding: 20px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9; }
+        input, select, button { width: 100%; margin-bottom: 12px; padding: 10px; box-sizing: border-box; }
+        button { background-color: #0056b3; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #004494; }
+        .msg { text-align: center; font-weight: bold; padding: 10px; margin-bottom: 20px; min-height: 20px; }
+        ul { padding-left: 20px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>Student Registration System</h1>
+    <div id="msg" class="msg"></div>
+    
+    <div class="grid-container">
+        <!-- Course Management -->
+        <div class="card">
+            <h3>1. Add Course</h3>
+            <input id="cCode" placeholder="Course Code (e.g. CS101)">
+            <input id="cTitle" placeholder="Course Title">
+            <input id="cSeats" type="number" placeholder="Total Seats">
+            <button onclick="addCourse()">Create Course</button>
+            
+            <h4>Database Records:</h4>
+            <ul id="courseList"></ul>
+        </div>
+
+        <!-- Student Management -->
+        <div class="card">
+            <h3>2. Add Student</h3>
+            <input id="sName" placeholder="Full Name">
+            <input id="sEmail" placeholder="Email Address">
+            <button onclick="addStudent()">Create Student</button>
+            
+            <h4>Database Records:</h4>
+            <ul id="studentList"></ul>
+        </div>
+
+        <!-- Registration Management -->
+        <div class="card">
+            <h3>3. Enroll Student</h3>
+            <select id="rStudent">
+                <option value="">Loading students...</option>
+            </select>
+            <select id="rCourse">
+                <option value="">Loading courses...</option>
+            </select>
+            <button onclick="register()">Complete Enrollment</button>
+            <button onclick="cancel()" style="background-color: #dc3545;">Cancel Registration</button>
+        </div>
+    </div>
+
+    <script>
+        const val = id => document.getElementById(id).value;
+        
+        const showMsg = (txt, isError) => {
+            const el = document.getElementById('msg');
+            el.innerText = txt;
+            el.style.color = isError ? 'red' : 'green';
+        };
+        
+        // Fetch and populate lists and dropdowns automatically
+        async function loadData() {
+            try {
+                const [sRes, cRes] = await Promise.all([fetch('/api/students'), fetch('/api/courses')]);
+                const students = await sRes.json();
+                const courses = await cRes.json();
+                
+                // Populate Lists
+                document.getElementById('studentList').innerHTML = students.map(s => `<li>${s.name} (${s.email})</li>`).join('');
+                document.getElementById('courseList').innerHTML = courses.map(c => `<li>${c.code}: ${c.title} (Seats: ${c.seats})</li>`).join('');
+                
+                // Populate Dropdowns
+                document.getElementById('rStudent').innerHTML = '<option value="">-- Select a Student --</option>' + 
+                    students.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+                document.getElementById('rCourse').innerHTML = '<option value="">-- Select a Course --</option>' + 
+                    courses.map(c => `<option value="${c.id}">${c.code} - ${c.title}</option>`).join('');
+            } catch (e) {
+                console.error("Database connecting...");
+            }
+        }
+
+        async function post(url, data, successMsg) {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            showMsg(res.ok ? successMsg : result.error, !res.ok);
+            if(res.ok) loadData(); // Refresh UI on success
+        }
+
+        async function addCourse() {
+            await post('/api/courses', {code: val('cCode'), title: val('cTitle'), seats: parseInt(val('cSeats'))}, 'Course Added');
+        }
+        
+        async function addStudent() {
+            await post('/api/students', {name: val('sName'), email: val('sEmail')}, 'Student Added');
+        }
+
+        async function register() {
+            await post('/api/registrations', {student_id: val('rStudent'), course_id: val('rCourse')}, 'Successfully Registered');
+        }
+
+        async function cancel() {
+            const res = await fetch('/api/registrations', {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({student_id: val('rStudent'), course_id: val('rCourse')})
+            });
+            showMsg('Registration Cancelled', false);
+        }
+
+        // Run immediately on page load
+        loadData();
+    </script>
+</body>
+</html>
